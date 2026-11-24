@@ -241,7 +241,7 @@ A számszerű célértékek kiindulási hipotézisek, amelyeket a 2. félév ele
 | A bemenetnapló és a ritkított pillanatképek együttes mérete legalább 80%-kal kisebb, mint a minden tickben mentett teljes állapoté. | Replay fájlméret összehasonlítása egy minden tickben mentő referencia-módszerrel (csak mérési célra). |
 | Az észlelt eltérés a perturbáció utáni legfeljebb K ticken belül jelzésre kerül. | Perturbációs teszt, amely az injektálás és az észlelés tickje közti különbséget méri. |
 | A kísérletek ugyanazzal a konfigurációval és seeddel megismételhetők, és azonos determinisztikus eredményt (hash-ek, tárhely) adnak; a gépfüggő idő oszlopok eltérhetnek. | Kísérlet ismételt futtatása, a CSV determinisztikus oszlopainak összehasonlítása. |
-| A `Core` projekt nem hivatkozik WPF-re, így a keretrendszer és a szimuláció grafikus felület nélkül is fut és tesztelhető. | A projektfájlok ellenőrzése; a tesztprojekt csak a `Core`-t hivatkozza. |
+| A `Core` projekt nem hivatkozik WPF-re és a `Simulations` projektre, így a keretrendszer grafikus felület és konkrét szimuláció nélkül is fut és tesztelhető; a ViewModel osztályok nem hivatkoznak View típusokra. | A projektfájlok ellenőrzése; a ViewModel-ekre és a `Core`-ra xUnit teszt. |
 | A sérült vagy ismeretlen verziójú replay fájl nem okoz összeomlást, hanem érthető hibaüzenetet ad (FR-B3, FR-B4). | Automatizált teszt módosított és ismeretlen verziójú fájllal. |
 | Normál sebességű visszajátszásnál a felület 50 entitással is legalább 30 FPS-sel jelenik meg. | Kézi mérés a felületen release buildben. |
 | A futtatási környezet: Windows 10 vagy újabb, .NET 10 SDK; a parancssoros kísérlet egyetlen paranccsal indítható (FR-F4). | A README-ben leírt lépések végigkövetése tiszta környezetben. |
@@ -269,20 +269,41 @@ Az 1 ms/tick cél azt jelenti, hogy headless, maximális sebességnél a visszaj
 
 ### Javasolt megoldás
 
-A rendszer három projektből áll, .NET 10-en (C#), és két logikai rétegre épül:
+A rendszer öt projektből áll, .NET 10-en (C#), és két logikai rétegre épül:
 
 - **Szimuláció-független replay-keretrendszer** (`Core`): a szimulációt egy interfészen át éri el, és csak azt feltételezi, hogy a lépés determinisztikus. Ha ez teljesül, a keretrendszer garantálja a reprodukálhatóságot és az eltérés felismerését.
-- **Szimuláció (referenciaimplementáció):** az aréna. A keretrendszer-szerződés (vázlat): `Init(config, seed)`, `Step(state, input)`, `Serialize(state)`, `Deserialize(bytes)`. Az általánosságot egy minimális második szimuláció igazolja a tesztekben.
+- **Szimuláció (referenciaimplementáció):** az aréna. Az általánosságot egy minimális második szimuláció igazolja a tesztekben.
+
+A keretrendszer-szerződés vázlata (nem végleges kód):
+
+```csharp
+interface ISimulation<TState, TInput>
+{
+    TState Init(SimulationConfig config, ulong seed);
+    TState Step(TState state, TInput input);   // a PRNG állapota a TState része
+    byte[] Serialize(TState state);            // kanonikus bináris forma
+    TState Deserialize(ReadOnlySpan<byte> bytes);
+}
+
+interface IInputSource<TInput>
+{
+    TInput GetInput(long tick);                // billentyűzet, bot vagy replay napló
+}
+```
 
 A projektek:
 
-1. **DeterministicReplayLab.Core**: megjelenítőtől független osztálykönyvtár. Tartalmazza a keretrendszert (tick-ciklus vezérlés, bemeneti forrás-absztrakció és napló, PRNG, kanonikus bináris szerializáló, állapot-hash, pillanatképkezelő, replay fájl formátum integritás-hash-sel, perturbációs modul, mérőkomponens) és az aréna-szimulációt.
-2. **DeterministicReplayLab.App**: WPF alkalmazás a megjelenítéshez, a lejátszóvezérléshez és a diagnosztikai panelhez. Nem tartalmaz szimulációs logikát.
-3. **DeterministicReplayLab.Tests**: xUnit tesztek a determinizmusra, a pillanatképekre, a hash-re és a perturbációkra. A kísérletek futtatására parancssori belépési pont (headless runner) is készül.
+1. **DeterministicReplayLab.Core**: megjelenítőtől és szimulációtól független osztálykönyvtár. Tartalmazza a keretrendszert: tick-ciklus vezérlés, bemeneti forrás-absztrakció és napló, PRNG, kanonikus bináris szerializáló, állapot-hash, pillanatképkezelő, replay fájl formátum integritás-hash-sel, perturbációs modul, mérőkomponens.
+2. **DeterministicReplayLab.Simulations**: az aréna és a minimális második szimuláció; a `Core`-t hivatkozza, a `Core` ezt nem.
+3. **DeterministicReplayLab.App**: WPF alkalmazás MVVM mintával. Nem tartalmaz szimulációs logikát.
+4. **DeterministicReplayLab.Cli**: konzolos (headless) kísérletfuttató a kísérletekhez és az újrafuttatáshoz (FR-F3, FR-F4).
+5. **DeterministicReplayLab.Tests**: xUnit tesztek a determinizmusra, a pillanatképekre, a hash-re, a perturbációkra és a ViewModel-ekre.
+
+A felosztás kikényszeríti a 4. fejezet szabályát: ha a `Core` az aréna nélkül lefordul, nem hivatkozik rá.
 
 A kulcsötlet, hogy **egyetlen kanonikus bináris szerializáció** szolgál a hash, a pillanatkép és a tárhelymérés alapjául: az állapot meghatározott sorrendben, meghatározott bájtábrázolással íródik, így ugyanabból az állapotból mindig ugyanaz a bájtsor, és így ugyanaz a hash keletkezik.
 
-A szimuláció működése: `Tick(állapot, bemenet) → új állapot`. A bemenet az adott tickben a lépés előtt érvényesül. A rögzítés a bemeneteket naplózza, a visszajátszás ugyanezt a naplót adja vissza ugyanazokban a tickekben.
+A szimuláció működése: `Step(állapot, bemenet) → új állapot`. A bemenet az adott tickben a lépés előtt érvényesül. A rögzítés a bemeneteket naplózza, a visszajátszás ugyanezt a naplót adja vissza ugyanazokban a tickekben.
 
 ### Technológiai irány
 
@@ -295,30 +316,35 @@ A szimuláció működése: `Tick(állapot, bemenet) → új állapot`. A bemene
 | Állapot-hash | `System.IO.Hashing.XxHash64` a kanonikus bájtfolyamon | Gyors, nem kriptográfiai ellenőrző-összeg elég a hibafelismeréshez | Ütközés valószínűsége; szükség esetén 128 bites változat. |
 | Pillanatkép és replay | Bináris formátum, opcionális JSON export | Kompakt, gyors betöltés; emberi szemmel az exportból vizsgálható | A formátum verziózása. |
 | Megjelenítés | WPF (`DrawingVisual` vagy `Canvas`) | Natív .NET, egyszerű 2D rajzolás, ismert technológia | Sok entitás rajzolásánál a UI-szál terhelése. |
+| Felület architektúrája | MVVM, `CommunityToolkit.Mvvm` | A ViewModel ablak nélkül tesztelhető; a felület elválik a logikától | Az aréna rajzolása a View feladata marad, ezt kézi teszt fedi. |
+| Kísérlet konfigurációja | JSON konfigurációs fájl a repóban | Az Ellenőrző ebből indítja az újrafuttatást (UC6, FR-F4) | A konfiguráció séma és verziózás véglegesítése. |
 | Tesztelés és mérés | xUnit, `Stopwatch`, CSV export | Automatizált és megismételhető kísérletek | A mérési protokoll véglegesítése a 2. félév elején. |
 
 ### Kezdeti architektúravázlat
 
 ```mermaid
-flowchart LR
-  U[Operátor / Kutató / Ellenőrző] --> UI[WPF alkalmazás]
-  CLI[Headless kísérletfuttató] --> Core
+flowchart TB
+  U[Operátor / Kutató / Ellenőrző] --> UI[App: WPF, MVVM]
+  U --> CLI[Cli: headless kísérletfuttató]
   UI --> Core
-  subgraph Core[DeterministicReplayLab.Core]
-    Sim[Szimulációs ciklus<br/>Tick] --> State[Világállapot + PRNG]
-    Log[Bemenetnapló]
-    Ser[Kanonikus szerializáció] --> Hash[Állapot-hash]
-    Ser --> Snap[Pillanatképek]
-    Perturb[Perturbációs modul]
-    Metrics[Mérések és CSV export]
+  CLI --> Core
+  subgraph Core[Core: szimuláció-független keretrendszer]
+    Input[IInputSource<br/>billentyűzet / bot / replay napló] --> Loop[Tick-ciklus]
+    Loop --> Log[Bemenetnapló]
+    Loop --> Ser[Kanonikus szerializáció]
+    Ser --> Hash[Állapot-hash, K tickenként]
+    Ser --> Snap[Pillanatképek, N tickenként]
+    Perturb[Perturbációs modul] --> Loop
+    Hash -->|desync jelzés| Loop
+    Snap -->|seek / resync| Loop
+    Loop --> Metrics[Mérések és CSV export]
   end
-  Sim <--> Log
-  State --> Ser
-  Hash -->|desync jelzés| Sim
-  Snap -->|seek / resync| Sim
-  Perturb --> State
-  Sim --> Metrics
-  Core --> Files[(Replay fájl és CSV)]
+  subgraph Sims[Simulations]
+    Arena[Aréna]
+    Mini[Minimális második szimuláció]
+  end
+  Loop <-->|ISimulation| Sims
+  Core --> Files[(Replay fájl, CSV)]
 ```
 
 ### Megvalósíthatóság és technikai kockázatok
@@ -328,5 +354,6 @@ flowchart LR
 | A fix lépésű C# szimuláció és a saját PRNG 50 000 tickig bitazonos állapotot ad. | Korai prototípus: két példány, tickenkénti hash-összehasonlítás; futtatás két külön processzben is. | Fixpontos számítás a `double` helyett. |
 | Az ugrás pillanatképből és újraszámolásból megfelelően gyors. | Mérés különböző N értékekre (pl. 10, 50, 100, 500) és cél-tickekre. | Adaptív vagy sűrűbb pillanatkép-készítés. |
 | A kanonikus szerializáció és a hash elég olcsó tickenkénti használathoz. | Mikrobenchmark K = 1 mellett 50 entitással. | Ritkább ellenőrzés (K növelése), bináris puffer újrahasznosítása. |
+| A szimulációnak nincs rejtett állapota (például statikus változó), amit a pillanatkép nem fedne le. | Mezőlefedettségi teszt (FR-D1) és pillanatképből indított futás összevetése a folyamatos futással. | Az állapot kizárólag a `TState` típusban élhet; kódellenőrzés a szimulációs osztályokon. |
 | A WPF megjelenítés nem torzítja a mérést. | A mérések headless módban futnak, a megjelenítés külön szálon. | Egyszerűbb, ritkított rajzolás a diagnosztikai nézetben. |
 | A projekt hatóköre belefér a 2. félévbe. | Az MVP a kötelező követelményekre korlátozódik, ütemezett mérföldkövekkel. | Az „Ajánlott” és „Lehetséges” elemek elhagyása. |
