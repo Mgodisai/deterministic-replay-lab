@@ -196,32 +196,35 @@ Az alkalmazás egyetlen főablakos WPF asztali program, két területtel és egy
 ### Wireframe
 
 ```text
-+------------------------------------------------------------------------------+
-| Fájl  [Új | Megnyitás | Mentés | Export JSON]        Mód [Rögzítés|Visszajátszás] |
-+---------------------------------------------+--------------------------------+
-|                                             | [ Kísérlet ] [ Mérések ]       |
-|                                             |                                |
-|            ARÉNA NÉZET (2D)                 | Seed:        [ 12345 ] [Sorsol]|
-|                                             | N (pillanatkép): [ 100 ]       |
-|        o        #                           | K (ellenőrzés):  [ 10  ]       |
-|             @        o                      | Numerikus mód:   (•)double ( )fix|
-|                  #                          | Perturbáció:     [ állapotzaj v]|
-|                                             | Időpont:  (•)tick [ 500 ] ( )seedelt|
-|                                             | Eltérés: (•)folytat ( )megáll ( )helyreáll|
-|                                             |                                |
-|                                             | [ Futtatás ] [ Helyreállítás ] |
-+---------------------------------------------+--------------------------------+
-| |<  <|  [ ||/> ]  |>   Sebesség: 1x 2x 4x max       Tick: 0420 / 3000        |
-| 0 |-----S------o--------S---X------------------------------------------| 3000|
-|   S = pillanatkép   o = ellenőrzőpont   X = észlelt eltérés                   |
-+------------------------------------------------------------------------------+
-| Mód: Visszajátszás | Hash: 3F9A…C21B | Ellenőrzés: ✖ eltérés a 410. tickben  |
-+------------------------------------------------------------------------------+
++--------------------------------------------------------------------------------+
+| Fájl  [Új | Megnyitás | Mentés | Export JSON^]   Mód: [Rögzítés|Visszajátszás] |
++------------------------------------------+-------------------------------------+
+|                                          | [ Kísérlet ] [ Mérések ]            |
+|                                          |                                     |
+|        ARÉNA NÉZET (2D)                  | Seed:            [ 12345 ] [Sorsol] |
+|                                          | N (pillanatkép): [ 100 ]            |
+|     o          #                         | K (ellenőrzés):  [ 10 ]             |
+|           @         o                    | Numerikus mód^: (•)double ( )fix    |
+|                #                         | Perturbáció:    [ állapotzaj    v ] |
+|                                          | Időpont: (•)tick [ 500 ] ( )seedelt |
+|                                          | Eltérés kezelése:                   |
+|                                          | (•)Folytat ( )Megáll ( )Helyreáll   |
+|                                          |                                     |
+|                                          | [ Futtatás^ ] [ Helyreállítás^ ]    |
++------------------------------------------+-------------------------------------+
+| |<^  <|^  [ ||/> ]  |>^    Sebesség: 1x 2x^ 4x^ max       Tick: 0420 / 3000    |
+| 0 |-----S------o--------S---X-------------------------------------------| 3000 |
+|   S = pillanatkép   o = ellenőrzőpont   X = észlelt eltérés (jelölések: ^)     |
++--------------------------------------------------------------------------------+
+| Mód: Visszajátszás | Hash: 3F9A..C21B | Ellenőrzés: X eltérés a 410. tickben   |
++--------------------------------------------------------------------------------+
 ```
+
+A `^` jelű elemek **Ajánlott** vagy **Lehetséges** követelményekhez tartoznak, az MVP nem tartalmazza őket.
 
 A **Mérések** fül tartalma: tárhely (replay fájl és referenciaméret, csökkenés aránya), idők (ellenőrzés, ugrás, helyreállítás), az eltérések listája (tick, típus) és az **Exportálás CSV-be** gomb.
 
-Az alábbi elemek **Ajánlott** vagy **Lehetséges** követelményekhez tartoznak, az MVP nem tartalmazza őket: a 2x és 4x sebesség (FR-C7), a lépés előre és vissza gombok (FR-C4), az idővonal jelölései (FR-G1), a numerikus mód választó (FR-A6), a kihagyott bemenet perturbációtípus (FR-E3), a futtatás gomb a felületről (FR-F6), a Helyreállítás gomb (FR-D9; az MVP-ben a helyreállítás automatikus), a JSON export (FR-B5) és a ghost nézet (FR-G2).
+Az alábbi elemek (a wireframe `^` jelölései) **Ajánlott** vagy **Lehetséges** követelményekhez tartoznak, az MVP nem tartalmazza őket: a 2x és 4x sebesség (FR-C7), a lépés előre és vissza gombok (FR-C4), az idővonal jelölései (FR-G1), a numerikus mód választó (FR-A6), a kihagyott bemenet perturbációtípus (FR-E3), a futtatás gomb a felületről (FR-F6), a Helyreállítás gomb (FR-D9; az MVP-ben a helyreállítás automatikus), a JSON export (FR-B5) és a ghost nézet (FR-G2).
 
 ### Képernyőállapotok
 
