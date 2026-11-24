@@ -378,7 +378,7 @@ flowchart TB
 
 Az észlelési késleltetést az első módosított ticktől mérjük, a „nem észlelt” jelentése: a záró ellenőrzőpontig nem volt hash-eltérés.
 
-A közzétett konfigurációs fájl, a futtatási parancs és a build azonosítója (commit hash) része az eredménynek; a kísérlet a CLI-ből egy paranccsal újrafuttatható (UC6). A kísérleti mátrix előzetes, a témavezetővel egyeztetem.
+A különböző K értékek összehasonlításához ugyanazokat az előre rögzített bemeneteltolásokat (ugyanazok az injektálási tickek) futtatjuk le minden K mellett, így a mintavétel hatását mérjük, nem a zavart bemenet különbségét. A közzétett konfigurációs fájl, a futtatási parancs és a build azonosítója (commit hash) része az eredménynek; a kísérlet a CLI-ből egy paranccsal újrafuttatható (UC6). A kísérleti mátrix előzetes, a témavezetővel egyeztetem.
 
 ### Megvalósíthatóság és technikai kockázatok
 
