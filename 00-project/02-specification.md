@@ -75,14 +75,14 @@ Szakkifejezések: a dokumentum magyar nyelvű, a fogalmak első előfordulásán
 ### UC4 – Perturbáció, eltérés érzékelése és helyreállítás
 
 - **Szereplő:** Kutató (Researcher)
-- **Előfeltétel:** Visszajátszás fut, az állapot-ellenőrzés be van kapcsolva.
+- **Előfeltétel:** Visszajátszás fut, az állapot-ellenőrzés be van kapcsolva. A perturbáció típusa és időpontja meg van adva: a szereplő adott ticket választ, vagy véletlenszerű időpontot kér, amelyet a rendszer egy külön, seedelt PRNG-ből sorsol (így a kísérlet reprodukálható).
 - **Fő folyamat:**
-  1. A szereplő perturbációt injektál (például egy entitás pozíciójának egy bitnyi módosítása, kihagyott vagy elcsúsztatott bemenet).
+  1. A szereplő perturbációt injektál. A típusok: állapotzaj (egy állapotmező egy bitjének módosítása), kihagyott bemenet, elcsúsztatott bemenet (egy tickkel korábban vagy később), numerikus eltérés (a lépés apró lebegőpontos hibával számol).
   2. A rendszer a következő ellenőrzőpontnál eltérést (desync) észlel, naplózza a tick sorszámát és jelzi a felületen.
-  3. Bekapcsolt automatikus helyreállítás esetén a rendszer betölti az utolsó, még az észlelt eltérés előtti pillanatképet, és újraszámolja a szimulációt.
-  4. A rendszer ellenőrzi, hogy az állapot-hash újra megegyezik a referenciával, és naplózza a helyreállítás idejét.
+  3. Bekapcsolt automatikus helyreállítás esetén a rendszer betölti az utolsó, még az észlelt eltérés előtti pillanatképet, és újraszámolja a szimulációt a naplózott bemenetekkel (a perturbáció nélkül).
+  4. A rendszer a következő ellenőrzőpontnál ellenőrzi, hogy az állapot-hash újra megegyezik a referenciával, és naplózza a helyreállítás idejét és az újraszámolt tickek számát.
 - **Alternatív / hibafolyamatok:** Ha a helyreállítás ki van kapcsolva, a futás folytatódik, az eltérés jelezve marad. Ha a helyreállítás után az eltérés ismét fellép (nem perturbáció, hanem kódbeli nemdeterminizmus az oka), a rendszer a próbálkozást néhány kísérlet után megszakítja, és hibaként jelzi.
-- **Utófeltétel:** A futás szinkronban van a referenciával, vagy a sikertelen helyreállítás naplózva van.
+- **Utófeltétel:** A futás szinkronban van a referenciával (a helyreállítás sikeres, ha a következő ellenőrzőpontnál a hash egyezik), vagy a sikertelen helyreállítás naplózva van.
 
 ### UC5 – Kísérlet futtatása és mérési adatok exportálása
 
@@ -120,7 +120,8 @@ Szakkifejezések: a dokumentum magyar nyelvű, a fogalmak első előfordulásán
 | A felhasználó a visszajátszás tetszőleges tickjére ugorhat. | Adott T tick esetén az ugrás után az állapot-hash megegyezik azzal, amit a 0. tickből folyamatos lejátszással kapnánk T-nél. | Kötelező |
 | A rendszer észleli az eltérést (desync) és megadja az első eltérő ellenőrzőpont tickjét. | Adott perturbált futásnál az eltérés az első olyan ellenőrzőpontnál jelzett, amely a perturbáció után van. | Kötelező |
 | A rendszer helyre tudja állítani az állapotot eltérés után. | Adott észlelt eltérésnél a legutolsó megfelelő pillanatképből újraszámolva az állapot-hash újra egyezik a referenciával. | Kötelező |
-| A kutató perturbációt injektálhat. | Adott perturbáció típusnál (állapotzaj, kihagyott bemenet, elcsúsztatott bemenet, numerikus eltérés) a rendszer az injektálás tickjét naplózza, és a futás az injektálástól eltér a referenciától. | Kötelező |
+| A kutató perturbációt injektálhat adott vagy véletlenszerű (seedelt) tickben. | Adott perturbáció típusnál (állapotzaj, kihagyott bemenet, elcsúsztatott bemenet) a rendszer az injektálás tickjét naplózza, és a futás az injektálástól eltér a referenciától; azonos seed mellett a véletlen időpont megegyezik. | Kötelező |
+| A perturbáció típusai között numerikus eltérés is választható. | Adott numerikus perturbációnál a lépés apró lebegőpontos hibával számol, és a futás a hibától eltér a referenciától. | Ajánlott |
 | A rendszer méri és CSV-be exportálja a tárhelyigényt, az ellenőrzési időt, az ugrási időt és a helyreállítási időt. | Adott kísérleti futás végén a CSV tartalmazza a paramétereket és az összes mérőszámot, és a kísérlet azonos konfigurációval megismételhető. | Kötelező |
 | A rendszer parancssorból (headless módban) is futtatható kísérletekhez. | Adott konfigurációnál a grafikus felület nélkül is lefut a kísérlet és létrejön a CSV. | Kötelező |
 | A közölt kísérletek a repóból egyetlen paranccsal újrafuttathatók. | Adott közölt konfigurációs fájlnál a parancs ugyanazt a determinisztikus eredményt adja (hash-ek, tárhely), mint a közölt CSV; az időmérések eltérhetnek. | Kötelező |
