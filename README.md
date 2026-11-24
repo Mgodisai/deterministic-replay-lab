@@ -21,8 +21,10 @@ A kurzus előírásainak megfelelően az 1. félév dokumentumai a `00-project/`
 ```text
 deterministic-replay-lab/
 ├── 00-project/                            # Az 1. félév kötelező dokumentumai és prezentációi
-    ├── 00-application.md
-    ├── 01-project-outline.md
-    ├── 02-specification.md
-    ├── 03-presentation-1.md
-    └── 04-presentation-2.md
+│   ├── 00-application.md
+│   ├── 01-project-outline.md
+│   ├── 02-specification.md
+│   ├── 03-presentation-1.md
+│   └── 04-presentation-2.md
+└── README.md
+```
