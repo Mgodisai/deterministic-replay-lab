@@ -121,7 +121,7 @@ Az azonosító betűje a csoportot jelöli: **A** szimuláció és véletlen, **
 | **FR-A6** – A szimuláció numerikus módja választható (`double` és fixpontos egész). | Adott azonos bemenetsorozatnál mindkét mód külön-külön reprodukálható, a méréseknél az eredmény módonként összehasonlítható. | Ajánlott |
 | **FR-B1** – A bemenet forrása cserélhető (billentyűzet, szkriptelt bot, replay napló). | Adott seedelt bot és konfiguráció mellett kétszer rögzítve azonos bemenetnapló keletkezik; a bot nem használja a szimuláció PRNG-jét. | Kötelező |
 | **FR-B2** – A rendszer a bemeneteket tick-sorszámhoz kötve rögzíti. | Adott rögzítésnél minden bemenet a tick sorszámával kerül a naplóba, és a napló a replay fájlba menthető. | Kötelező |
-| **FR-B3** – A replay fájl fejléce tartalmazza a formátumverziót, a seedet és a szimuláció konfigurációját. | Adott replay fájlnál a fejléc az említett adatokat tartalmazza; ismeretlen formátumverziójú fájlt a rendszer érthető hibával elutasít. | Kötelező |
+| **FR-B3** – A replay fájl fejléce tartalmazza a formátumverziót, a seedet, a szimuláció konfigurációját és a numerikus módot. | Adott replay fájlnál a fejléc az említett adatokat tartalmazza; ismeretlen formátumverziójú fájlt a rendszer érthető hibával elutasít. | Kötelező |
 | **FR-B4** – A replay fájl integritás-hash-t tartalmaz, amelyet betöltéskor ellenőriz a rendszer. | Adott egy bájtnyira módosított fájl esetén a betöltés hibával leáll, és ez megkülönböztethető a szimulációs eltéréstől. | Kötelező |
 | **FR-B5** – A replay fájl emberi szemmel is vizsgálható formában (JSON) exportálható. | Adott replay fájlnál az exportált JSON betöltve ugyanazt a replayt adja. | Lehetséges |
 | **FR-C1** – A rendszer a rögzített bemenetekből újra előállítja a futást. | Adott replay fájlnál, amikor a visszajátszás lefut, az állapot-hash minden ellenőrzőpontnál megegyezik a rögzítéskor tároltal. | Kötelező |
@@ -155,13 +155,18 @@ Prioritás: **Kötelező** = a végtermékhez szükséges; **Ajánlott** = fonto
 | Szabály vagy korlát | Indoklás |
 | --- | --- |
 | A teljes világállapot minden tickben történő rögzítése nem lehet a visszajátszás elsődleges mechanizmusa. | A feladatkiírás kifejezett tiltása; a bemenet-alapú újraszámolás a projekt lényege. |
+| A bemenetnapló marad a hiteles forrás: a hash-ellenőrzés és a pillanatkép csak gyorsítás és ellenőrzés, nem a replay helyettesítője. | Biztosítja, hogy a visszajátszás a bemenetekből újraszámolt futás marad. |
 | A szimulációs magban tilos a rendszeridő (`DateTime`, `Stopwatch`), a megjelenítési képkockasebesség, a `System.Random`, a szálak közötti versenyhelyzet és a nem rögzített sorrendű gyűjtemények bejárása. | Ezek a nemdeterminizmus leggyakoribb forrásai; a mag csak a tick sorszámától, az állapottól és a naplózott bemenettől függhet. |
 | Az entitások feldolgozási sorrendje és a hash bemenetének sorrendje rögzített (azonosító szerint növekvő). | A rendezetlen bejárás vagy szerializáció azonos állapotra is eltérő hash-t adhat. |
-| Minden pillanatkép tartalmazza a PRNG teljes belső állapotát. | Enélkül a pillanatképből indított folytatás eltérne a folyamatos futástól. |
 | A bemenet az adott tick szimulációs lépése előtt kerül alkalmazásra, és a naplóban tick szerint rendezett. | Egyértelmű sorrend nélkül a visszajátszás eltérő eredményt adhat. |
-| A replay fájl fejléce tartalmazza a formátumverziót, a seedet, a szimulációs konfigurációt és a numerikus módot. | Eltérő konfigurációval a visszajátszás nem reprodukálható; verzióellenőrzés nélkül sérült vagy régi fájl félrevezető eredményt adhat. |
+| A kanonikus szerializáció rögzített bájtsorrendet (little-endian) használ, kitöltés nélkül; a `double` érték a bitmintájával kerül be, a `NaN` és a `-0.0` normalizálva. | Ezek nélkül azonos állapot is eltérő bájtsorozatot és hash-t adhat. |
+| Minden pillanatkép tartalmazza a PRNG teljes belső állapotát. | Enélkül a pillanatképből indított folytatás eltérne a folyamatos futástól. |
+| A szkriptelt bot saját, seedelt PRNG-t használ, nem a szimulációét. | A bot döntései ne változtassák a szimuláció véletlensorozatát, és a bot naplója önmagában reprodukálható legyen. |
+| A visszajátszó keretrendszer nem hivatkozhat az aréna típusaira, a szimulációt kizárólag az `ISimulation` interfészen át éri el. | Ez teszi a megoldást általánossá, és lehetővé teszi a második szimulációt (FR-A5). |
+| A replay fájl fejlécének tartalmát az FR-B3 írja elő (formátumverzió, seed, konfiguráció, numerikus mód). | Eltérő konfigurációval a visszajátszás nem reprodukálható; verzióellenőrzés nélkül sérült vagy régi fájl félrevezető eredményt adhat. |
+| A sérült fájl (integritáshiba) és a szimulációs eltérés (desync) két külön hiba, külön jelzéssel. | Az első a tárolás, a második a futás hibája; összemosva a diagnózis félrevezető lenne. |
+| A közölt kísérletek konfigurációja és seedje a repóban van, és futtatás után nem módosul. | Az Ellenőrző csak így tudja ugyanazt a kísérletet újrafuttatni (UC6). |
 | A garantált determinizmus szintje: azonos bináris, azonos operációs rendszer és architektúra, azonos .NET futtatókörnyezet mellett bitazonos állapot. | A platformok közötti bitazonosság a feladatkiírás szerint nem követelmény; a garancia határát a dolgozatban egyértelműen dokumentálni kell. |
-| A hash ellenőrzés és a pillanatkép nem veheti át az újraszámolás szerepét: a bemenetnapló marad a hiteles forrás. | Biztosítja, hogy a pillanatkép csak gyorsítás és ellenőrzés, nem a replay helyettesítője. |
 | Titkos kulcs, token vagy személyes adat nem kerülhet a repóba. | A feladatkiírás előírása. |
 
 ## 5. Felhasználói felület és munkafolyamat
