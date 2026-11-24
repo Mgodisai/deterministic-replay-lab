@@ -6,6 +6,30 @@ Ez a repository a **Determinisztikus visszajátszás és állapotszinkronizáci�
 
 A **Deterministic Replay Lab** egy .NET (C#) alapú, fix időléptékű (tick-alapú) 2D-s szimulációs motor és kísérleti mérőkörnyezet. A rendszer célja annak vizsgálata és demonstrálása, hogyan valósítható meg a játékmenet bitazonos, reprodukálható visszajátszása (replay) pusztán a bemenetek naplózásával, hogyan detektálhatók a nemdeterminisztikus állapot-eltérések (desync) ellenőrző összegek (hash/checksum) segítségével, valamint milyen tárhely- és számítási idős kompromisszumokkal jár a ritkított pillanatképek (snapshotok) alkalmazása az időbeli pozicionálás (seeking) és az állapot-helyreállítás (resync) során.
 
+## Projektadatok
+
+| | |
+| --- | --- |
+| Szerző | Varga Tamás (UE6LI3) |
+| Témavezető | Novák Péter |
+| Projektazonosító | 2026-NP-04 |
+| GitHub Project tábla | [Mgodisai / Projects #2](https://github.com/users/Mgodisai/projects/2) |
+
+## Állapot
+
+Jelenleg az **1. félév (tervezési szakasz)** zajlik: az outline, a funkcionális specifikáció és a két prezentáció forrása a `00-project/` mappában található. A **forráskód még nem készült el**, a megvalósítás a 2. félévben kezdődik.
+
+## Tervezett technológiai stack
+
+| Terület | Technológia |
+| --- | --- |
+| Nyelv, futtatókörnyezet | C# / .NET 10 (LTS) |
+| Felület | WPF, MVVM (`CommunityToolkit.Mvvm`) |
+| Állapot-hash | `System.IO.Hashing.XxHash64` |
+| Tesztelés, mérés | xUnit, `Stopwatch`, CSV export |
+
+A tervezett projektek: `Core` (szimuláció-független keretrendszer), `Simulations` (aréna), `App` (WPF), `Cli` (headless kísérletfuttató), `Tests`. Részletek: [02-specification.md](./00-project/02-specification.md), 8. fejezet.
+
 ## Projektdokumentáció (1. Félév - Projekt 1. tárgy)
 
 A kurzus előírásainak megfelelően az 1. félév dokumentumai a `00-project/` mappában találhatók:
@@ -13,8 +37,8 @@ A kurzus előírásainak megfelelően az 1. félév dokumentumai a `00-project/`
 * **[00-application.md](./00-project/00-application.md)** – Az elfogadott projektjelentkezés és brief értelmezés.
 * **[01-project-outline.md](./00-project/01-project-outline.md)** – A projekt céljai, hatóköre, sikerkritériumok és a GitHub Projects tábla hivatkozása.
 * **[02-specification.md](./00-project/02-specification.md)** – Részletes funkcionális specifikáció, szerepkörök, use case-ek, követelmények és kezdeti technikai javaslat.
-* **`03-presentation-1.md`** – Az 1. prezentáció PRMD forrása (probléma, célfelhasználók, hatókör).
-* **`04-presentation-2.md`** – A 2. prezentáció PRMD forrása (specifikáció, technikai javaslat, 2. féléves terv).
+* **[03-presentation-1.md](./00-project/03-presentation-1.md)** – Az 1. prezentáció PRMD forrása (probléma, célfelhasználók, hatókör).
+* **[04-presentation-2.md](./00-project/04-presentation-2.md)** – A 2. prezentáció PRMD forrása (specifikáció, technikai javaslat, 2. féléves terv).
 
 ## Repository Struktúra
 
