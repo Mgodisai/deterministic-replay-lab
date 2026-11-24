@@ -87,13 +87,25 @@ Szakkifejezések: a dokumentum magyar nyelvű, a fogalmak első előfordulásán
 ### UC5 – Kísérlet futtatása és mérési adatok exportálása
 
 - **Szereplő:** Kutató (Researcher)
-- **Előfeltétel:** A kísérleti konfiguráció (szimuláció hossza, N, perturbáció típusa) meg van adva.
+- **Előfeltétel:** A kísérleti konfiguráció (szimuláció hossza, seed, bot seed, N, K, numerikus mód, perturbáció típusa és időpontja, ismétlések száma, alapértelmezetten 5) meg van adva.
 - **Fő folyamat:**
   1. A szereplő elindítja a kísérletet (headless parancssorból vagy a felületről).
-  2. A rendszer a konfiguráció szerint bottal rögzíti, majd visszajátssza a futást, közben méri a költségeket.
-  3. A rendszer a mérési eredményeket CSV fájlba exportálja.
+  2. A rendszer egy bemelegítő futás után, release módban, megjelenítés nélkül, a konfiguráció szerint bottal rögzíti, majd visszajátssza a futást, közben méri a költségeket. A mérést az ismétlések számának megfelelően megismétli.
+  3. A rendszer a mérési eredményeket CSV fájlba exportálja: a konfigurációt, a környezetet (OS, CPU, .NET verzió, keretrendszer-verzió), a helyességi mutatókat, a tárhelymutatókat (köztük a minden tickben teljes állapotot mentő referenciaméretet és a csökkenés arányát) és az időmutatókat (az időkre medián, minimum, maximum).
 - **Alternatív / hibafolyamatok:** Ha a konfiguráció érvénytelen (például N ≤ 0), a rendszer a futtatás előtt hibaüzenetet ad.
-- **Utófeltétel:** A CSV tartalmazza a futás paramétereit és mérőszámait, a kísérlet ugyanazzal a konfigurációval megismételhető.
+- **Utófeltétel:** A CSV tartalmazza a futás paramétereit és mérőszámait. A determinisztikus oszlopok (hash, méretek, eltérő tick, észlelési késleltetés) minden gépen azonosak, az idő oszlopok gépfüggők.
+
+### UC6 – Kísérlet reprodukálása és eredményének ellenőrzése
+
+- **Szereplő:** Ellenőrző (Verifier)
+- **Előfeltétel:** Az Ellenőrző hozzáfér a repóhoz, a közölt konfigurációs fájlhoz és a közölt CSV-hez.
+- **Fő folyamat:**
+  1. Az Ellenőrző a repóból letölti és lefordítja a kódot.
+  2. Egyetlen paranccsal újrafuttatja a közölt konfigurációt.
+  3. A rendszer összeveti az új futás determinisztikus oszlopait a közölt CSV-vel, és jelzi az egyezést vagy az eltérő oszlopokat.
+  4. Az Ellenőrző szükség esetén betölti a mellékelt replay fájlt a felületen, és megtekinti a visszajátszást.
+- **Alternatív / hibafolyamatok:** Ha egy determinisztikus oszlop eltér, a rendszer jelzi, melyik oszlopról van szó; az idő oszlopok eltérése nem hiba, a rendszer csak a nagyságrendi eltérést jelzi.
+- **Utófeltétel:** Az Ellenőrző tudja, hogy a közölt eredmény reprodukálható-e a saját környezetében.
 
 ## 3. Funkcionális követelmények
 
@@ -122,7 +134,9 @@ Szakkifejezések: a dokumentum magyar nyelvű, a fogalmak első előfordulásán
 | A rendszer helyre tudja állítani az állapotot eltérés után. | Adott észlelt eltérésnél a legutolsó megfelelő pillanatképből újraszámolva az állapot-hash újra egyezik a referenciával. | Kötelező |
 | A kutató perturbációt injektálhat adott vagy véletlenszerű (seedelt) tickben. | Adott perturbáció típusnál (állapotzaj, kihagyott bemenet, elcsúsztatott bemenet) a rendszer az injektálás tickjét naplózza, és a futás az injektálástól eltér a referenciától; azonos seed mellett a véletlen időpont megegyezik. | Kötelező |
 | A perturbáció típusai között numerikus eltérés is választható. | Adott numerikus perturbációnál a lépés apró lebegőpontos hibával számol, és a futás a hibától eltér a referenciától. | Ajánlott |
-| A rendszer méri és CSV-be exportálja a tárhelyigényt, az ellenőrzési időt, az ugrási időt és a helyreállítási időt. | Adott kísérleti futás végén a CSV tartalmazza a paramétereket és az összes mérőszámot, és a kísérlet azonos konfigurációval megismételhető. | Kötelező |
+| A rendszer méri és CSV-be exportálja a helyességi, tárhely- és időmutatókat (köztük az ellenőrzési időt, az ugrási időt és a helyreállítási időt). | Adott kísérleti futás végén a CSV tartalmazza a konfigurációt, a környezetet és az összes mérőszámot; az időkre az ismétlések mediánját, minimumát és maximumát; a determinisztikus oszlopok minden gépen azonosak. | Kötelező |
+| A rendszer a tárhelymérésnél kiszámítja a minden tickben teljes állapotot mentő referenciamódszer méretét és a csökkenés arányát. | Adott kísérleti futásnál a CSV tartalmazza a referenciaméretet (tickszám × egy állapot mérete) és a replay fájl méretével számított arányt; a referencia nem készül el tényleges fájlként. | Kötelező |
+| A rendszer összeveti egy új futás determinisztikus oszlopait a közölt CSV-vel. | Adott közölt CSV és azonos konfiguráció mellett a rendszer egyezést jelez; egy módosított determinisztikus oszlopnál megnevezi az eltérő oszlopot; az idő oszlopokat nem tekinti hibának. | Kötelező |
 | A rendszer parancssorból (headless módban) is futtatható kísérletekhez. | Adott konfigurációnál a grafikus felület nélkül is lefut a kísérlet és létrejön a CSV. | Kötelező |
 | A közölt kísérletek a repóból egyetlen paranccsal újrafuttathatók. | Adott közölt konfigurációs fájlnál a parancs ugyanazt a determinisztikus eredményt adja (hash-ek, tárhely), mint a közölt CSV; az időmérések eltérhetnek. | Kötelező |
 | A szimuláció numerikus módja választható (`double` és fixpontos egész). | Adott azonos bemenetsorozatnál mindkét mód külön-külön reprodukálható, a méréseknél az eredmény módonként összehasonlítható. | Ajánlott |
