@@ -1,0 +1,258 @@
+---
+project_outline: "[[00-project/01-project-outline]]"
+---
+# Determinisztikus visszajátszás és állapotszinkronizáció játékokban
+
+Kapcsolódó projektoutline: [01-project-outline.md](./01-project-outline.md)
+
+## 1. Szereplők és jogosultságok
+
+| Szerep | Igény | Felelősség / hozzáférés |
+| --- | --- | --- |
+| Operátor (Operator) | Az aréna-szimuláció irányítása, a futás rögzítése, majd visszajátszása és az idővonalon való mozgás | Rögzítést és visszajátszást indít, billentyűzettel irányítja a játékos-entitást, tetszőleges tickre ugrik. |
+| Kutató (Researcher) | A determinizmus korlátainak, a pillanatképek hatásának és a helyreállításnak a kísérleti vizsgálata | Beállítja a kísérleti paramétereket, perturbációt injektál, futtatja a méréseket (grafikus felületen vagy headless módban), exportálja az eredményeket. |
+| Ellenőrző (Verifier) | Az eredmények és a visszajátszás önálló ellenőrzése, a kísérletek reprodukálása | Csak olvasási jellegű használat: betölti a replay fájlt és megtekinti a visszajátszást, a repóból a megadott konfigurációval újrafuttatja a kísérletet, és összeveti az eredményt a közölt CSV-vel. Nem módosítja a rendszert. |
+
+A rendszer egyfelhasználós asztali alkalmazás, nincs bejelentkezés és nincs jogosultságkezelés. A szerepek a használat céljában különböznek, az Ellenőrző jogosultsága pedig nem technikai korlát, hanem a használat jellege (csak megtekint és újrafuttat, nem szerkeszt).
+
+Szakkifejezések: a dokumentum magyar nyelvű, a fogalmak első előfordulásánál zárójelben az angol megfelelő áll, mert a megvalósításban ezek az azonosítók.
+
+| Magyar | Angol (kódbeli név) | Jelentés |
+| --- | --- | --- |
+| Tick (időlépés) | `Tick` | A szimuláció egy fix lépése. |
+| Pillanatkép | `Snapshot` | A teljes állapot (a PRNG állapotával együtt) mentése adott tickben. |
+| Ellenőrzőpont | `Checkpoint` | Olyan tick, ahol az állapot-hash rögzítése és ellenőrzése történik. |
+| Eltérés | `Desync` | A visszajátszott állapot eltér a rögzítettől. |
+| Helyreállítás | `Resync` | Visszaállás egy pillanatképre és az állapot újraszámolása eltérés után. |
+| Ugrás | `Seek` | Ugrás a visszajátszás adott tickjére. |
+| Perturbáció | `Perturbation` | Szándékosan bevitt hiba az eltérés-felismerés és helyreállítás vizsgálatához. |
+| Visszajátszás | `Replay` | A futás újra előállítása a rögzített bemenetekből. |
+| Seed (kezdőérték) | `Seed` | A PRNG kezdőértéke; a konfigurációval együtt ebből áll elő a kezdőállapot. |
+| Álvéletlenszám-generátor | `PRNG` | Képlet alapján véletlennek látszó, de determinisztikus számsorozatot ad; belső állapota menthető. |
+| Bot | `Bot` | Seedelt, szkriptelt bemenetgenerátor a kísérletekhez. |
+
+## 2. Use case-ek / user storyk
+
+### UC1 – Szimuláció rögzítése
+
+- **Szereplő:** Operátor (Operator)
+- **Előfeltétel:** A konfiguráció (N, K, bemeneti forrás) be van állítva. A seedet a szereplő megadja, vagy a rendszer véletlenszerűen sorsol és a replay fejlécébe menti.
+- **Fő folyamat:**
+  1. A szereplő Record módban elindít egy új szimulációt. A bemenet forrása a billentyűzet (Operátor) vagy egy szkriptelt, seedelt bot (kísérletek).
+  2. A rendszer a konfigurációból és a seedből inicializálja a világállapotot és a PRNG-t, a 0. tickről pillanatképet készít, majd fix időlépésenként (tick) futtatja a szimulációt.
+  3. A szereplő billentyűzettel irányítja a játékos-entitást.
+  4. A rendszer minden bemenetet a tick sorszámával együtt naplóz.
+  5. A rendszer N tickenként pillanatképet, K tickenként állapot-hasht (ellenőrzőpontot) rögzít.
+  6. A szereplő leállítja a rögzítést (bot esetén a megadott tickszám elérésekor leáll), a rendszer replay fájlba menti az adatokat, a fájl törzsére számított integritás-hash-sel együtt.
+- **Alternatív / hibafolyamatok:** Ha egy tickben nincs bemenet, nem keletkezik naplóbejegyzés, a szimuláció ettől függetlenül lép. A bot saját PRNG-t használ, amely független a szimuláció PRNG-jétől. Ha a fájl mentése sikertelen, a rendszer hibát jelez, és a memóriabeli replay megmarad.
+- **Utófeltétel:** Létezik egy replay fájl (fejléc: formátumverzió, seed, konfiguráció; bemenetnapló, hash-ellenőrzőpontok, pillanatképek, integritás-hash).
+
+### UC2 – Visszajátszás és ellenőrzés
+
+- **Szereplő:** Operátor (Operator)
+- **Előfeltétel:** Be van töltve egy érvényes replay fájl.
+- **Fő folyamat:**
+  1. A szereplő elindítja a visszajátszást. A rendszer előbb ellenőrzi a fájl integritás-hash-ét.
+  2. A rendszer a fejlécből inicializálja a szimulációt, és a naplózott bemeneteket a rögzített tickekben alkalmazza.
+  3. Minden ellenőrzőpontnál a rendszer kiszámítja az aktuális állapot-hasht, és összeveti a replay fájlban tároltal.
+  4. A rendszer a futás végén kiírja az eredményt: egyezés vagy az első eltérés tickje.
+  5. A szereplő a visszajátszást bármikor szüneteltetheti, folytathatja, egy tickkel előre vagy hátra léphet, és választhat sebességet (valós idejű, 2x, 4x, maximális).
+- **Alternatív / hibafolyamatok:** Ha a replay fájl formátumverziója ismeretlen, vagy az integritás-hash nem egyezik (sérült fájl), a rendszer nem indítja el a visszajátszást, és hibaüzenetet ad. Így a sérült fájl nem téveszthető össze szimulációs eltéréssel (desync). Eltérés (desync) esetén a rendszer alapértelmezetten jelzi és naplózza az eltérést, majd folytatja a futást; a konfigurációban megállásra is állítható.
+- **Utófeltétel:** A visszajátszás eredménye (egyezik / eltér) naplózva van.
+
+### UC3 – Ugrás a visszajátszás adott pontjára (seeking)
+
+- **Szereplő:** Operátor (Operator)
+- **Előfeltétel:** Be van töltve egy replay fájl.
+- **Fő folyamat:**
+  1. A szereplő az idővonalon kiválaszt egy T cél-ticket.
+  2. A rendszer megkeresi a T-nél nem későbbi legutolsó pillanatképet, és visszaállítja belőle az állapotot (PRNG állapottal együtt).
+  3. A rendszer a pillanatkép tickjétől T-ig megjelenítés nélkül újraszámolja a szimulációt a naplózott bemenetekkel.
+  4. A rendszer megjeleníti a T. tick állapotát, a szereplő onnan folytathatja a lejátszást.
+- **Alternatív / hibafolyamatok:** Ha a visszaállított pillanatkép hash-e nem egyezik a mentett hash-sel (sérült vagy hibásan olvasott pillanatkép), a rendszer az előző pillanatképre esik vissza, és az eseményt naplózza. Ha T a replay hosszán túl van, a felületen az idővonal ezt nem engedi, programozott (parancssori) hívásnál a rendszer hibát ad.
+- **Utófeltétel:** A megjelenített állapot a T. tick állapota; ha T ellenőrzőpont, az állapot-hash megegyezik a rögzítéskor tárolt hash-sel.
+
+### UC4 – Perturbáció, eltérés érzékelése és helyreállítás
+
+- **Szereplő:** Kutató (Researcher)
+- **Előfeltétel:** Visszajátszás fut, az állapot-ellenőrzés be van kapcsolva.
+- **Fő folyamat:**
+  1. A szereplő perturbációt injektál (például egy entitás pozíciójának egy bitnyi módosítása, kihagyott vagy elcsúsztatott bemenet).
+  2. A rendszer a következő ellenőrzőpontnál eltérést (desync) észlel, naplózza a tick sorszámát és jelzi a felületen.
+  3. Bekapcsolt automatikus helyreállítás esetén a rendszer betölti az utolsó, még az észlelt eltérés előtti pillanatképet, és újraszámolja a szimulációt.
+  4. A rendszer ellenőrzi, hogy az állapot-hash újra megegyezik a referenciával, és naplózza a helyreállítás idejét.
+- **Alternatív / hibafolyamatok:** Ha a helyreállítás ki van kapcsolva, a futás folytatódik, az eltérés jelezve marad. Ha a helyreállítás után az eltérés ismét fellép (nem perturbáció, hanem kódbeli nemdeterminizmus az oka), a rendszer a próbálkozást néhány kísérlet után megszakítja, és hibaként jelzi.
+- **Utófeltétel:** A futás szinkronban van a referenciával, vagy a sikertelen helyreállítás naplózva van.
+
+### UC5 – Kísérlet futtatása és mérési adatok exportálása
+
+- **Szereplő:** Kutató (Researcher)
+- **Előfeltétel:** A kísérleti konfiguráció (szimuláció hossza, N, perturbáció típusa) meg van adva.
+- **Fő folyamat:**
+  1. A szereplő elindítja a kísérletet (headless parancssorból vagy a felületről).
+  2. A rendszer a konfiguráció szerint bottal rögzíti, majd visszajátssza a futást, közben méri a költségeket.
+  3. A rendszer a mérési eredményeket CSV fájlba exportálja.
+- **Alternatív / hibafolyamatok:** Ha a konfiguráció érvénytelen (például N ≤ 0), a rendszer a futtatás előtt hibaüzenetet ad.
+- **Utófeltétel:** A CSV tartalmazza a futás paramétereit és mérőszámait, a kísérlet ugyanazzal a konfigurációval megismételhető.
+
+## 3. Funkcionális követelmények
+
+| Követelmény | Elfogadási kritérium | Prioritás |
+| --- | --- | --- |
+| A rendszer fix időlépésű (tick-alapú) szimulációs ciklust futtat, amely független a megjelenítés képkockasebességétől. | Adott azonos seed és bemenetsorozat esetén, amikor a szimulációt különböző megjelenítési sebességgel (vagy megjelenítés nélkül) futtatjuk, ugyanaz az állapot-hash keletkezik ugyanazon tickben. | Kötelező |
+| A rendszer seedelhető, állapotmenthető véletlenszám-generátort használ. | Adott seed esetén a generátor mindig ugyanazt a sorozatot adja, és a belső állapotból visszaállítva onnan folytatja a sorozatot, ahol megszakadt. | Kötelező |
+| A rendszer 2D aréna-szimulációt futtat referenciaimplementációként (mozgás, ütközés, játékosbemenet, seedelt véletlen esemény). | Adott játékos-bemenetre a játékos-entitás a szabályok szerint mozog, az entitások ütközése és a seedelt véletlen események (például tárgyak megjelenése) reprodukálható módon zajlanak. | Kötelező |
+| A seed megadható, vagy a rendszer sorsol és a replay fejlécébe menti. | Adott megadott seednél ugyanaz a kezdőállapot jön létre; sorsolt seednél a fejlécből a futás reprodukálható. | Kötelező |
+| A bemenet forrása cserélhető (billentyűzet, szkriptelt bot, replay napló). | Adott seedelt bot és konfiguráció mellett kétszer rögzítve azonos bemenetnapló keletkezik; a bot nem használja a szimuláció PRNG-jét. | Kötelező |
+| A rendszer a bemeneteket tick-sorszámhoz kötve rögzíti. | Adott rögzítésnél minden bemenet a tick sorszámával kerül a naplóba, és a napló a replay fájlba menthető. | Kötelező |
+| A visszajátszás szüneteltethető, és több sebességgel futtatható (valós idejű, 2x, 4x, maximális). | Adott futó visszajátszásnál a szünet megállítja a tick-számlálót, a sebességváltás megváltoztatja a lépésszámot időegységenként; a maximális sebességnél megjelenítés nélkül fut. | Kötelező |
+| A visszajátszásban egy tickkel előre és hátra lehet lépni, hátrafelé ismételten is. | Adott T tickből a hátralépés az ugrás szabályai szerint (`Seek(T-1)`) a T-1. tick állapotát adja, amelynek hash-e megegyezik a folyamatos futás hash-ével; a művelet többször egymás után is használható. | Ajánlott |
+| Eltérés után a rendszer az utolsó jó pillanatképtől újrafuttatással megadja a pontos eltérő ticket, és jelzi, hogy az újrafuttatás megismétli-e az eltérést. | Adott észlelt eltérésnél (K > 1 esetén is) az újrafuttatás K = 1 ellenőrzéssel megadja az első eltérő ticket; megismétlődő eltérésnél a rendszer kódbeli nemdeterminizmust jelez. | Ajánlott |
+| A hátrafelé lépésekhez a rendszer gyorsítótárat használhat, és folyamatos hátrafelé lejátszás is elérhető. | Adott gyorsítótár mellett az ablakon belüli hátralépések mérhetően gyorsabbak, mint a gyorsítótár nélküliek. | Lehetséges |
+| A felhasználó egy ugrás után új bemenettel folytathatja a futást (elágazás). | Adott T tick utáni új bemenetnél a T utáni napló, pillanatképek és hash-ek érvénytelenítve vagy új ágként tárolva vannak, és az új ág reprodukálható. | Lehetséges |
+| A rendszer a rögzített bemenetekből újra előállítja a futást. | Adott replay fájlnál, amikor a visszajátszás lefut, az állapot-hash minden ellenőrzőpontnál megegyezik a rögzítéskor tároltal. | Kötelező |
+| A replay fájl integritás-hash-t tartalmaz, amelyet betöltéskor ellenőriz a rendszer. | Adott egy bájtnyira módosított fájl esetén a betöltés hibával leáll, és ez megkülönböztethető a szimulációs eltéréstől. | Kötelező |
+| A visszajátszó keretrendszer szimuláció-független: a szimulációt interfészen át éri el, és az aréna mellett legalább egy minimális második szimulációval is működik. | Adott a második (egyszerű) szimuláció esetén a rögzítés, visszajátszás, ugrás és eltérés-felismerés ugyanazzal a keretrendszerrel, módosítás nélkül működik. | Ajánlott |
+| A rendszer az állapotot kanonikus bináris szerializáció feletti hash-sel ellenőrzi. | Adott két azonos állapot esetén a hash megegyezik, egyetlen mező egy bitnyi eltérésénél pedig különbözik; a teszt az állapot minden mezőjére lefut (mezőlefedettség). | Kötelező |
+| Minden pillanatkép tartalmazza a saját állapot-hash-ét, amelyet a rendszer betöltéskor ellenőriz. | Adott sérült pillanatképnél a betöltés hibát jelez, és a rendszer az előző pillanatképre esik vissza. | Kötelező |
+| A rendszer az állapot-hasht K tickenként rögzíti és ellenőrzi (K konfigurálható). | Adott K=1 mellett az első eltérő tick pontosan azonosítható, K>1 esetén az eltérés legfeljebb K tickkel később észlelhető. | Kötelező |
+| A rendszer N tickenként pillanatképet készít (N konfigurálható). | Adott N mellett a replay fájlban a pillanatképek tickjei N többszörösei, és mindegyik tartalmazza a PRNG állapotát is. | Kötelező |
+| A felhasználó a visszajátszás tetszőleges tickjére ugorhat. | Adott T tick esetén az ugrás után az állapot-hash megegyezik azzal, amit a 0. tickből folyamatos lejátszással kapnánk T-nél. | Kötelező |
+| A rendszer észleli az eltérést (desync) és megadja az első eltérő ellenőrzőpont tickjét. | Adott perturbált futásnál az eltérés az első olyan ellenőrzőpontnál jelzett, amely a perturbáció után van. | Kötelező |
+| A rendszer helyre tudja állítani az állapotot eltérés után. | Adott észlelt eltérésnél a legutolsó megfelelő pillanatképből újraszámolva az állapot-hash újra egyezik a referenciával. | Kötelező |
+| A kutató perturbációt injektálhat. | Adott perturbáció típusnál (állapotzaj, kihagyott bemenet, elcsúsztatott bemenet, numerikus eltérés) a rendszer az injektálás tickjét naplózza, és a futás az injektálástól eltér a referenciától. | Kötelező |
+| A rendszer méri és CSV-be exportálja a tárhelyigényt, az ellenőrzési időt, az ugrási időt és a helyreállítási időt. | Adott kísérleti futás végén a CSV tartalmazza a paramétereket és az összes mérőszámot, és a kísérlet azonos konfigurációval megismételhető. | Kötelező |
+| A rendszer parancssorból (headless módban) is futtatható kísérletekhez. | Adott konfigurációnál a grafikus felület nélkül is lefut a kísérlet és létrejön a CSV. | Kötelező |
+| A közölt kísérletek a repóból egyetlen paranccsal újrafuttathatók. | Adott közölt konfigurációs fájlnál a parancs ugyanazt a determinisztikus eredményt adja (hash-ek, tárhely), mint a közölt CSV; az időmérések eltérhetnek. | Kötelező |
+| A szimuláció numerikus módja választható (`double` és fixpontos egész). | Adott azonos bemenetsorozatnál mindkét mód külön-külön reprodukálható, a méréseknél az eredmény módonként összehasonlítható. | Ajánlott |
+| A felület a referencia és az eltért állapotot egymásra vetítve (ghost nézet) mutatja. | Adott észlelt eltérésnél a felület mindkét állapotot megjeleníti, a különbség vizuálisan látható. | Lehetséges |
+| A replay fájl emberi szemmel is vizsgálható formában (JSON) exportálható. | Adott replay fájlnál az exportált JSON betöltve ugyanazt a replayt adja. | Lehetséges |
+
+Prioritás: **Kötelező** = a végtermékhez szükséges; **Ajánlott** = fontos; **Lehetséges** = idő esetén opcionális.
+
+## 4. Üzleti szabályok és korlátok
+
+| Szabály vagy korlát | Indoklás |
+| --- | --- |
+| A teljes világállapot minden tickben történő rögzítése nem lehet a visszajátszás elsődleges mechanizmusa. | A feladatkiírás kifejezett tiltása; a bemenet-alapú újraszámolás a projekt lényege. |
+| A szimulációs magban tilos a rendszeridő (`DateTime`, `Stopwatch`), a megjelenítési képkockasebesség, a `System.Random`, a szálak közötti versenyhelyzet és a nem rögzített sorrendű gyűjtemények bejárása. | Ezek a nemdeterminizmus leggyakoribb forrásai; a mag csak a tick sorszámától, az állapottól és a naplózott bemenettől függhet. |
+| Az entitások feldolgozási sorrendje és a hash bemenetének sorrendje rögzített (azonosító szerint növekvő). | A rendezetlen bejárás vagy szerializáció azonos állapotra is eltérő hash-t adhat. |
+| Minden pillanatkép tartalmazza a PRNG teljes belső állapotát. | Enélkül a pillanatképből indított folytatás eltérne a folyamatos futástól. |
+| A bemenet az adott tick szimulációs lépése előtt kerül alkalmazásra, és a naplóban tick szerint rendezett. | Egyértelmű sorrend nélkül a visszajátszás eltérő eredményt adhat. |
+| A replay fájl fejléce tartalmazza a formátumverziót, a seedet, a szimulációs konfigurációt és a numerikus módot. | Eltérő konfigurációval a visszajátszás nem reprodukálható; verzióellenőrzés nélkül sérült vagy régi fájl félrevezető eredményt adhat. |
+| A garantált determinizmus szintje: azonos bináris, azonos operációs rendszer és architektúra, azonos .NET futtatókörnyezet mellett bitazonos állapot. | A platformok közötti bitazonosság a feladatkiírás szerint nem követelmény; a garancia határát a dolgozatban egyértelműen dokumentálni kell. |
+| A hash ellenőrzés és a pillanatkép nem veheti át az újraszámolás szerepét: a bemenetnapló marad a hiteles forrás. | Biztosítja, hogy a pillanatkép csak gyorsítás és ellenőrzés, nem a replay helyettesítője. |
+| Titkos kulcs, token vagy személyes adat nem kerülhet a repóba. | A feladatkiírás előírása. |
+
+## 5. Felhasználói felület és munkafolyamat
+
+Az alkalmazás egyetlen főablakos WPF asztali program, két területtel.
+
+1. **Szimulációs tér és lejátszóvezérlő (bal oldal):** az aréna 2D nézete, alatta Record / Play / Pause gombok, tick-számláló és idővonal-csúszka az ugráshoz. Az idővonalon jelölve vannak a pillanatképek, az ellenőrzőpontok és az észlelt eltérések.
+2. **Kísérleti és diagnosztikai panel (jobb oldal):** beállítható a seed, N, K, a numerikus mód és a perturbáció típusa; alatta élő mérőszámok (tárhely, hash-idő, ugrási idő, eltérések naplója) és az exportálás gomb.
+
+A fő munkafolyamat:
+
+```mermaid
+flowchart LR
+  Config[1. Seed és paraméterek beállítása] --> Rec[2. Szimuláció és bemenet rögzítése]
+  Rec --> Rep[3. Visszajátszás és hash-ellenőrzés]
+  Rep --> Seek[4a. Ugrás pillanatképből]
+  Rep --> Pert[4b. Perturbáció, eltérés, helyreállítás]
+  Seek --> Exp[5. Mérések exportálása CSV-be]
+  Pert --> Exp
+```
+
+A kísérletek grafikus felület nélkül is futtathatók parancssorból, ugyanazzal a maggal. A részletes wireframe a 2. félév elején készül el a megvalósítás előtt, a fenti két területes elrendezésből kiindulva.
+
+## 6. Nem funkcionális követelmények
+
+A számszerű célértékek kiindulási hipotézisek, amelyeket a 2. félév elején mért prototípus-adatok alapján finomítani kell.
+
+| Követelmény | Ellenőrzés módja |
+| --- | --- |
+| Zavarásmentes futásnál a visszajátszás 1 000, 10 000 és 50 000 tick után is minden ellenőrzőpontnál egyező hash-t ad. | Automatizált xUnit teszt, különböző seedekkel és bemenetsorozatokkal. |
+| Ugyanaz a szimuláció és bemenetsorozat két külön folyamatban lefuttatva is azonos hash-t ad. | Automatizált teszt két külön processzben, a hash-ek összehasonlításával. |
+| Egy tick és az állapot-hash számítása 50 entitásnál átlagosan 1 ms alatt marad. | Headless mérés `Stopwatch`-csal, release buildben, bemelegítés után. |
+| N = 100 mellett az ugrás (pillanatkép betöltése és az újraszámolás) 50 ms alatt befejeződik. | Ugrási idő mérése több cél-tickre, ismételt futásokkal. |
+| A bemenetnapló és a ritkított pillanatképek együttes mérete legalább 80%-kal kisebb, mint a minden tickben mentett teljes állapoté. | Replay fájlméret összehasonlítása egy minden tickben mentő referencia-módszerrel (csak mérési célra). |
+| Az észlelt eltérés a perturbáció utáni legfeljebb K ticken belül jelzésre kerül. | Perturbációs teszt, amely az injektálás és az észlelés tickje közti különbséget méri. |
+| A kísérletek ugyanazzal a konfigurációval és seeddel megismételhetők, és azonos eredményt (a méréstől független számokat) adnak. | Kísérlet ismételt futtatása, a CSV determinisztikus oszlopainak összehasonlítása. |
+
+## 7. Nyitott kérdések és kockázatok
+
+| Kérdés / kockázat | Hatás | Felelős | Feloldás / döntés |
+| --- | --- | --- | --- |
+| Okoz-e eltérést a `double` aritmetika ugyanazon a gépen, például különböző futtatási módok (Debug / Release, JIT) között? | A hosszú futások reprodukálhatóságát érinti. | Hallgató | Kísérlettel vizsgálom; csak alapműveleteket (+, −, ×, ÷) használok, és mellé fixpontos módot is megvalósítok összehasonlításra. |
+| A `System.Random` állapota nem menthető, és a .NET-verziók között az algoritmusa változhat. | A pillanatképből nem lehetne folytatni. | Hallgató | Saját PRNG (pl. xorshift vagy PCG), amelynek az állapota néhány egész szám. |
+| A .NET `string.GetHashCode` és a `Dictionary` bejárási sorrendje megtévesztő lehet. | Rejtett nemdeterminizmus a szimulációban vagy a hash-ben. | Hallgató | A mag nem használ ezekre épülő logikát; rendezett listák és azonosító szerinti bejárás. |
+| A sűrű pillanatképek memória- és CPU-költsége. | Torzíthatja a mérést és a lejátszást. | Hallgató | Bináris szerializáció és a másolás költségének mérése; N értékeinek vizsgálata. |
+| A hash ütközése tévesen egyezőnek mutathat eltérő állapotot. | Elmaradó desync-jelzés. | Hallgató | 64 bites hash elegendő a vizsgált futáshosszra; a mérésben a kockázat dokumentálása. |
+| A WPF megjelenítés zavarhatja az időmérést. | Pontatlan költségmérés. | Hallgató | A mérés headless módban, a megjelenítéstől elkülönítve fut. |
+| A projekt hatóköre túl nagy lehet az 1 év alatt. | Késés a 2. félévben. | Hallgató és témavezető | Az „Ajánlott” és „Lehetséges” követelmények csak a kötelezők után készülnek; a hatókört a témavezetővel egyeztetem. |
+
+## 8. Kezdeti technikai javaslat
+
+### Javasolt megoldás
+
+A rendszer három projektből áll, .NET 8-on (C#), és két logikai rétegre épül:
+
+- **Szimuláció-független replay-keretrendszer** (`Core`): a szimulációt egy interfészen át éri el, és csak azt feltételezi, hogy a lépés determinisztikus. Ha ez teljesül, a keretrendszer garantálja a reprodukálhatóságot és az eltérés felismerését.
+- **Szimuláció (referenciaimplementáció):** az aréna. A keretrendszer-szerződés (vázlat): `Init(config, seed)`, `Step(state, input)`, `Serialize(state)`, `Deserialize(bytes)`. Az általánosságot egy minimális második szimuláció igazolja a tesztekben.
+
+A projektek:
+
+1. **DeterministicReplayLab.Core**: megjelenítőtől független osztálykönyvtár. Tartalmazza a keretrendszert (tick-ciklus vezérlés, bemeneti forrás-absztrakció és napló, PRNG, kanonikus bináris szerializáló, állapot-hash, pillanatképkezelő, replay fájl formátum integritás-hash-sel, perturbációs modul, mérőkomponens) és az aréna-szimulációt.
+2. **DeterministicReplayLab.App**: WPF alkalmazás a megjelenítéshez, a lejátszóvezérléshez és a diagnosztikai panelhez. Nem tartalmaz szimulációs logikát.
+3. **DeterministicReplayLab.Tests**: xUnit tesztek a determinizmusra, a pillanatképekre, a hash-re és a perturbációkra. A kísérletek futtatására parancssori belépési pont (headless runner) is készül.
+
+A kulcsötlet, hogy **egyetlen kanonikus bináris szerializáció** szolgál a hash, a pillanatkép és a tárhelymérés alapjául: az állapot meghatározott sorrendben, meghatározott bájtábrázolással íródik, így ugyanabból az állapotból mindig ugyanaz a bájtsor, és így ugyanaz a hash keletkezik.
+
+A szimuláció működése: `Tick(állapot, bemenet) → új állapot`. A bemenet az adott tickben a lépés előtt érvényesül. A rögzítés a bemeneteket naplózza, a visszajátszás ugyanezt a naplót adja vissza ugyanazokban a tickekben.
+
+### Technológiai irány
+
+| Terület | Jelölt technológia / megközelítés | Megfontolás oka | Nyitott kérdés / kockázat |
+| --- | --- | --- | --- |
+| Nyelv és futtatókörnyezet | C# / .NET 8 (LTS) | Ismert környezet, erős típusosság, jó mérési eszközök | A JIT és a `double` viselkedésének kísérleti vizsgálata. |
+| Szimulációs mag | Osztálykönyvtár, nem tartalmaz UI-függést | Megjelenítés nélkül tesztelhető és mérhető | Az absztrakciós határ pontos meghúzása. |
+| Szám-ábrázolás | `double` és fixpontos (`long`, pl. Q32.32) mód | Összehasonlítható a két megközelítés reprodukálhatósága és költsége | A fixpontos módban az ütközésszámítás bonyolultabb. |
+| Véletlenszám | Saját xorshift/PCG generátor | Teljes állapota egy-két egész szám, menthető | A statisztikai minőség elégséges a szimulációhoz. |
+| Állapot-hash | `System.IO.Hashing.XxHash64` a kanonikus bájtfolyamon | Gyors, nem kriptográfiai ellenőrző-összeg elég a hibafelismeréshez | Ütközés valószínűsége; szükség esetén 128 bites változat. |
+| Pillanatkép és replay | Bináris formátum, opcionális JSON export | Kompakt, gyors betöltés; emberi szemmel az exportból vizsgálható | A formátum verziózása. |
+| Megjelenítés | WPF (`DrawingVisual` vagy `Canvas`) | Natív .NET, egyszerű 2D rajzolás, ismert technológia | Sok entitás rajzolásánál a UI-szál terhelése. |
+| Tesztelés és mérés | xUnit, `Stopwatch`, CSV export | Automatizált és megismételhető kísérletek | A mérési protokoll véglegesítése a 2. félév elején. |
+
+### Kezdeti architektúravázlat
+
+```mermaid
+flowchart LR
+  U[Operátor / Kutató / Ellenőrző] --> UI[WPF alkalmazás]
+  CLI[Headless kísérletfuttató] --> Core
+  UI --> Core
+  subgraph Core[DeterministicReplayLab.Core]
+    Sim[Szimulációs ciklus<br/>Tick] --> State[Világállapot + PRNG]
+    Log[Bemenetnapló]
+    Ser[Kanonikus szerializáció] --> Hash[Állapot-hash]
+    Ser --> Snap[Pillanatképek]
+    Perturb[Perturbációs modul]
+    Metrics[Mérések és CSV export]
+  end
+  Sim <--> Log
+  State --> Ser
+  Hash -->|desync jelzés| Sim
+  Snap -->|seek / resync| Sim
+  Perturb --> State
+  Sim --> Metrics
+  Core --> Files[(Replay fájl és CSV)]
+```
+
+### Megvalósíthatóság és technikai kockázatok
+
+| Kockázat / feltételezés | A 2. félévre tervezett validáció | Tartalék megközelítés |
+| --- | --- | --- |
+| A fix lépésű C# szimuláció és a saját PRNG 50 000 tickig bitazonos állapotot ad. | Korai prototípus: két példány, tickenkénti hash-összehasonlítás; futtatás két külön processzben is. | Fixpontos számítás a `double` helyett. |
+| Az ugrás pillanatképből és újraszámolásból megfelelően gyors. | Mérés különböző N értékekre (pl. 10, 50, 100, 500) és cél-tickekre. | Adaptív vagy sűrűbb pillanatkép-készítés. |
+| A kanonikus szerializáció és a hash elég olcsó tickenkénti használathoz. | Mikrobenchmark K = 1 mellett 50 entitással. | Ritkább ellenőrzés (K növelése), bináris puffer újrahasznosítása. |
+| A WPF megjelenítés nem torzítja a mérést. | A mérések headless módban futnak, a megjelenítés külön szálon. | Egyszerűbb, ritkított rajzolás a diagnosztikai nézetben. |
+| A projekt hatóköre belefér a 2. félévbe. | Az MVP a kötelező követelményekre korlátozódik, ütemezett mérföldkövekkel. | Az „Ajánlott” és „Lehetséges” elemek elhagyása. |
