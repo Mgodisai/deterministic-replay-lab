@@ -171,24 +171,62 @@ Prioritás: **Kötelező** = a végtermékhez szükséges; **Ajánlott** = fonto
 
 ## 5. Felhasználói felület és munkafolyamat
 
-Az alkalmazás egyetlen főablakos WPF asztali program, két területtel.
+Az alkalmazás egyetlen főablakos WPF asztali program, két területtel és egy állapotsorral.
 
-1. **Szimulációs tér és lejátszóvezérlő (bal oldal):** az aréna 2D nézete, alatta Record / Play / Pause gombok, tick-számláló és idővonal-csúszka az ugráshoz. Az idővonalon jelölve vannak a pillanatképek, az ellenőrzőpontok és az észlelt eltérések.
-2. **Kísérleti és diagnosztikai panel (jobb oldal):** beállítható a seed, N, K, a numerikus mód és a perturbáció típusa; alatta élő mérőszámok (tárhely, hash-idő, ugrási idő, eltérések naplója) és az exportálás gomb.
+1. **Szimulációs tér és lejátszóvezérlő (bal oldal):** az aréna 2D nézete, alatta a lejátszóvezérlő (ugrás az elejére, lépés vissza, lejátszás/szünet, lépés előre, sebesség: 1x, 2x, 4x, max), a tick-számláló és az idővonal-csúszka az ugráshoz. Az idővonalon jelölve vannak a pillanatképek, az ellenőrzőpontok és az észlelt eltérések (FR-G1).
+2. **Kísérleti és diagnosztikai panel (jobb oldal):** két fül. A **Kísérlet** fülön állítható a seed, N, K, a numerikus mód és a perturbáció típusa és ideje; a **Mérések** fülön élő mérőszámok (tárhely, hash-idő, ugrási idő), az eltérések naplója és a CSV-export.
+3. **Állapotsor (alul):** az aktuális tick, az állapot-hash, a mód (rögzítés vagy visszajátszás) és az ellenőrzés állapota (egyezik / eltérés).
 
-A fő munkafolyamat:
+### Wireframe
+
+```text
++------------------------------------------------------------------------------+
+| Fájl  [Új | Megnyitás | Mentés | Export JSON]        Mód [Rögzítés|Visszajátszás] |
++---------------------------------------------+--------------------------------+
+|                                             | [ Kísérlet ] [ Mérések ]       |
+|                                             |                                |
+|            ARÉNA NÉZET (2D)                 | Seed:        [ 12345 ] [Sorsol]|
+|                                             | N (pillanatkép): [ 100 ]       |
+|        o        #                           | K (ellenőrzés):  [ 10  ]       |
+|             @        o                      | Numerikus mód:   (•)double ( )fix|
+|                  #                          | Perturbáció:     [ állapotzaj v]|
+|                                             | Időpont:  (•)tick [ 500 ] ( )seedelt|
+|                                             | Eltérés esetén:  (•)folytat ( )megáll|
+|                                             |                                |
+|                                             | [ Futtatás ] [ Helyreállítás ] |
++---------------------------------------------+--------------------------------+
+| |<  <|  [ ||/> ]  |>   Sebesség: 1x 2x 4x max       Tick: 0420 / 3000        |
+| 0 |-----S------o--------S---X------------------------------------------| 3000|
+|   S = pillanatkép   o = ellenőrzőpont   X = észlelt eltérés                   |
++------------------------------------------------------------------------------+
+| Mód: Visszajátszás | Hash: 3F9A…C21B | Ellenőrzés: ✖ eltérés a 410. tickben  |
++------------------------------------------------------------------------------+
+```
+
+A **Mérések** fül tartalma: tárhely (replay fájl és referenciaméret, csökkenés aránya), idők (ellenőrzés, ugrás, helyreállítás), az eltérések listája (tick, típus) és az **Exportálás CSV-be** gomb.
+
+### Képernyőállapotok
+
+A navigáció nem fa, hanem három állapot ugyanabban az ablakban:
+
+- **Rögzítés (UC1):** az aréna él, a bemenet (billentyűzet vagy bot) rögzül, az idővonal nő. A lejátszógombok tiltottak, a Kísérlet fül paraméterei (seed, N, K) zároltak.
+- **Visszajátszás (UC2, UC3):** a replay a fájlból fut. Az idővonalon bárhová lehet ugrani, lépni előre és vissza, a sebesség változtatható. Az állapotsor folyamatosan mutatja az ellenőrzés eredményét.
+- **Eltérés és helyreállítás (UC4):** perturbációnál az eltérés pontja az idővonalon és az eltéréslistában megjelenik; a **Helyreállítás** gomb a legutolsó jó pillanatképtől újraszámol, és jelzi az eredményt. A ghost nézet (FR-G2) ide tartozik, ha lesz rá idő.
+
+### Munkafolyamat
 
 ```mermaid
 flowchart LR
-  Config[1. Seed és paraméterek beállítása] --> Rec[2. Szimuláció és bemenet rögzítése]
-  Rec --> Rep[3. Visszajátszás és hash-ellenőrzés]
-  Rep --> Seek[4a. Ugrás pillanatképből]
-  Rep --> Pert[4b. Perturbáció, eltérés, helyreállítás]
-  Seek --> Exp[5. Mérések exportálása CSV-be]
+  Config[1. Seed és paraméterek beállítása] --> Rec[2. Szimuláció és bemenet rögzítése - UC1]
+  Rec --> Rep[3. Visszajátszás és hash-ellenőrzés - UC2]
+  Rep --> Seek[4a. Ugrás pillanatképből - UC3]
+  Rep --> Pert[4b. Perturbáció, eltérés, helyreállítás - UC4]
+  Seek --> Exp[5. Mérések exportálása CSV-be - UC5]
   Pert --> Exp
+  Exp --> Ver[6. Újrafuttatás és összevetés - UC6]
 ```
 
-A kísérletek grafikus felület nélkül is futtathatók parancssorból, ugyanazzal a maggal. A részletes wireframe a 2. félév elején készül el a megvalósítás előtt, a fenti két területes elrendezésből kiindulva.
+A kísérletek grafikus felület nélkül is futtathatók parancssorból, ugyanazzal a maggal (FR-F3); ez az UC5 és az UC6 elsődleges módja. A wireframe a 2. félévben a megvalósítás során finomodhat, de az elrendezés és a három állapot a specifikáció része.
 
 ## 6. Nem funkcionális követelmények
 
