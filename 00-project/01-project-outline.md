@@ -14,7 +14,7 @@ A projekt egy 2D-s szimuláción alapuló demonstrátor és kísérleti mérők�
 - **Elsődleges cél:** Működő, bemenet-alapú determinisztikus visszajátszó demonstrátor és mérőkörnyezet készítése állapot-ellenőrzéssel és pillanatkép-alapú helyreállítással.
 - **Célfelhasználók / érintettek:** Játék- és szimulációfejlesztők, a kísérleti méréseket végző hallgató és a szakmai bírálók.
 - **Mérhető sikerkritériumok:** Zavarásmentes futásnál a visszajátszás 10 000 tick után is az eredetivel megegyező állapot-hash-t ad; szándékos állapotzavarás (perturbáció) esetén a rendszer észleli az eltérést és a legutóbbi pillanatképből helyreállítja a szinkront; a mérőmodul rögzíti és exportálja a tárhelyigényt, a pozicionálási időt és az ellenőrzés CPU-költségét.
-- **Korlátok:** C# (.NET 8/9); megjelenítőtől független szimulációs mag; WPF asztali megjelenítő és diagnosztikai felület; a teljes világállapot minden képkockán történő mentése nem lehet az elsődleges visszajátszási mechanizmus; titkos kulcsok vagy személyes adatok nem kerülhetnek a repóba.
+- **Korlátok:** C# (.NET 10 LTS); megjelenítőtől független szimulációs mag; WPF asztali megjelenítő és diagnosztikai felület; a teljes világállapot minden képkockán történő mentése nem lehet az elsődleges visszajátszási mechanizmus; titkos kulcsok vagy személyes adatok nem kerülhetnek a repóba.
 
 ## Hatókör
 
