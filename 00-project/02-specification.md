@@ -150,6 +150,12 @@ Az azonosító betűje a csoportot jelöli: **A** szimuláció és véletlen, **
 
 Prioritás: **Kötelező** = a végtermékhez szükséges; **Ajánlott** = fontos; **Lehetséges** = idő esetén opcionális.
 
+### Hatókör
+
+- **MVP (2. félév):** az összes **Kötelező** követelmény. Az **Ajánlott** és a **Lehetséges** elemek csak a kötelezők elkészülte után kerülnek sorra.
+- **Hatókörön kívül:** platformok közötti bitazonosság; hálózati játék és netcode; 3D megjelenítés és külső játékmotor integrációja; többszálú szimuláció; külső, kész játék adapterezése; kriptográfiai biztonságú hash.
+- A use case-ek egyes lépései Ajánlott követelményekre épülnek, ezek nem az MVP részei: lépés vissza (FR-C4, UC2), pillanatkép-hash visszaesés (FR-D4, UC3), numerikus eltérés (FR-E2, UC4), automatikus CSV-összevetés (FR-F5, UC6).
+
 ## 4. Üzleti szabályok és korlátok
 
 | Szabály vagy korlát | Indoklás |
