@@ -240,7 +240,13 @@ A számszerű célértékek kiindulási hipotézisek, amelyeket a 2. félév ele
 | N = 100 mellett az ugrás (pillanatkép betöltése és az újraszámolás) 50 ms alatt befejeződik. | Ugrási idő mérése több cél-tickre, ismételt futásokkal. |
 | A bemenetnapló és a ritkított pillanatképek együttes mérete legalább 80%-kal kisebb, mint a minden tickben mentett teljes állapoté. | Replay fájlméret összehasonlítása egy minden tickben mentő referencia-módszerrel (csak mérési célra). |
 | Az észlelt eltérés a perturbáció utáni legfeljebb K ticken belül jelzésre kerül. | Perturbációs teszt, amely az injektálás és az észlelés tickje közti különbséget méri. |
-| A kísérletek ugyanazzal a konfigurációval és seeddel megismételhetők, és azonos eredményt (a méréstől független számokat) adnak. | Kísérlet ismételt futtatása, a CSV determinisztikus oszlopainak összehasonlítása. |
+| A kísérletek ugyanazzal a konfigurációval és seeddel megismételhetők, és azonos determinisztikus eredményt (hash-ek, tárhely) adnak; a gépfüggő idő oszlopok eltérhetnek. | Kísérlet ismételt futtatása, a CSV determinisztikus oszlopainak összehasonlítása. |
+| A `Core` projekt nem hivatkozik WPF-re, így a keretrendszer és a szimuláció grafikus felület nélkül is fut és tesztelhető. | A projektfájlok ellenőrzése; a tesztprojekt csak a `Core`-t hivatkozza. |
+| A sérült vagy ismeretlen verziójú replay fájl nem okoz összeomlást, hanem érthető hibaüzenetet ad (FR-B3, FR-B4). | Automatizált teszt módosított és ismeretlen verziójú fájllal. |
+| Normál sebességű visszajátszásnál a felület 50 entitással is legalább 30 FPS-sel jelenik meg. | Kézi mérés a felületen release buildben. |
+| A futtatási környezet: Windows 10 vagy újabb, .NET 10 SDK; a parancssoros kísérlet egyetlen paranccsal indítható (FR-F4). | A README-ben leírt lépések végigkövetése tiszta környezetben. |
+
+Az 1 ms/tick cél azt jelenti, hogy headless, maximális sebességnél a visszajátszás nagyságrendileg 1 000 tick/s.
 
 ## 7. Nyitott kérdések és kockázatok
 
@@ -250,15 +256,20 @@ A számszerű célértékek kiindulási hipotézisek, amelyeket a 2. félév ele
 | A `System.Random` állapota nem menthető, és a .NET-verziók között az algoritmusa változhat. | A pillanatképből nem lehetne folytatni. | Hallgató | Saját PRNG (pl. xorshift vagy PCG), amelynek az állapota néhány egész szám. |
 | A .NET `string.GetHashCode` és a `Dictionary` bejárási sorrendje megtévesztő lehet. | Rejtett nemdeterminizmus a szimulációban vagy a hash-ben. | Hallgató | A mag nem használ ezekre épülő logikát; rendezett listák és azonosító szerinti bejárás. |
 | A sűrű pillanatképek memória- és CPU-költsége. | Torzíthatja a mérést és a lejátszást. | Hallgató | Bináris szerializáció és a másolás költségének mérése; N értékeinek vizsgálata. |
-| A hash ütközése tévesen egyezőnek mutathat eltérő állapotot. | Elmaradó desync-jelzés. | Hallgató | 64 bites hash elegendő a vizsgált futáshosszra; a mérésben a kockázat dokumentálása. |
+| A hash ütközése tévesen egyezőnek mutathat eltérő állapotot. | Elmaradó desync-jelzés. | Hallgató | A 64 bites hash ütközési esélye elhanyagolható; a valódi kockázat egy kihagyott mező, ellene mezőlefedettségi teszt (FR-D1); tartalék az XxHash128. |
 | A WPF megjelenítés zavarhatja az időmérést. | Pontatlan költségmérés. | Hallgató | A mérés headless módban, a megjelenítéstől elkülönítve fut. |
-| A projekt hatóköre túl nagy lehet az 1 év alatt. | Késés a 2. félévben. | Hallgató és témavezető | Az „Ajánlott” és „Lehetséges” követelmények csak a kötelezők után készülnek; a hatókört a témavezetővel egyeztetem. |
+| A közölt CSV más gépen vagy más futtatókörnyezettel eltérő determinisztikus értéket adhat. | Az Ellenőrző hibásnak hiheti a kísérletet (UC6). | Hallgató | A CSV rögzíti a környezetet (OS, architektúra, .NET verzió); eltérő környezetnél az összevetés figyelmeztet. |
+| A keretrendszer általánosítása több munkát jelent, mint egy fix játék. | Késés vagy túlbonyolított interfész. | Hallgató | Az `ISimulation` kicsi marad; a második szimuláció (FR-A5) Ajánlott, és csak a kötelezők után készül. |
+| A szkriptelt bot nem determinisztikus, ha közös vagy seedeletlen PRNG-t használ. | Nem reprodukálható bemenetnapló. | Hallgató | Saját seedelt PRNG; külön teszt az FR-B1 kritériumára. |
+| A replay formátum változik a fejlesztés alatt. | Régi fájlok olvashatatlanná válnak. | Hallgató | Formátumverzió a fejlécben (FR-B3); ismeretlen verziót a rendszer elutasít. |
+| A .NET 8 támogatása 2026 novemberében lejárt, a feladatkiírás viszont .NET 8/9-et említ. | A dolgozat lejárt támogatású futtatókörnyezetre épülne. | Hallgató és témavezető | A projekt .NET 10 (LTS) alatt készül; az eltérést a témavezetővel jelzem. |
+| A projekt hatóköre túl nagy lehet az 1 év alatt. | Késés a 2. félévben. | Hallgató és témavezető | Az „Ajánlott” és „Lehetséges” követelmények (köztük az FR-D4, FR-F5, FR-A5) csak a kötelezők után készülnek; a hatókört a témavezetővel egyeztetem. |
 
 ## 8. Kezdeti technikai javaslat
 
 ### Javasolt megoldás
 
-A rendszer három projektből áll, .NET 8-on (C#), és két logikai rétegre épül:
+A rendszer három projektből áll, .NET 10-en (C#), és két logikai rétegre épül:
 
 - **Szimuláció-független replay-keretrendszer** (`Core`): a szimulációt egy interfészen át éri el, és csak azt feltételezi, hogy a lépés determinisztikus. Ha ez teljesül, a keretrendszer garantálja a reprodukálhatóságot és az eltérés felismerését.
 - **Szimuláció (referenciaimplementáció):** az aréna. A keretrendszer-szerződés (vázlat): `Init(config, seed)`, `Step(state, input)`, `Serialize(state)`, `Deserialize(bytes)`. Az általánosságot egy minimális második szimuláció igazolja a tesztekben.
@@ -277,7 +288,7 @@ A szimuláció működése: `Tick(állapot, bemenet) → új állapot`. A bemene
 
 | Terület | Jelölt technológia / megközelítés | Megfontolás oka | Nyitott kérdés / kockázat |
 | --- | --- | --- | --- |
-| Nyelv és futtatókörnyezet | C# / .NET 8 (LTS) | Ismert környezet, erős típusosság, jó mérési eszközök | A JIT és a `double` viselkedésének kísérleti vizsgálata. |
+| Nyelv és futtatókörnyezet | C# / .NET 10 (LTS) | Ismert környezet, erős típusosság, jó mérési eszközök; a .NET 8 támogatása 2026 novemberében lejárt, a .NET 10 LTS 2028 novemberéig támogatott | A JIT és a `double` viselkedésének kísérleti vizsgálata. |
 | Szimulációs mag | Osztálykönyvtár, nem tartalmaz UI-függést | Megjelenítés nélkül tesztelhető és mérhető | Az absztrakciós határ pontos meghúzása. |
 | Szám-ábrázolás | `double` és fixpontos (`long`, pl. Q32.32) mód | Összehasonlítható a két megközelítés reprodukálhatósága és költsége | A fixpontos módban az ütközésszámítás bonyolultabb. |
 | Véletlenszám | Saját xorshift/PCG generátor | Teljes állapota egy-két egész szám, menthető | A statisztikai minőség elégséges a szimulációhoz. |
