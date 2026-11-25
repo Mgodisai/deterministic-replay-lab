@@ -29,8 +29,8 @@ Mi van a specifikációban?
 
 | Prioritás | Darab |
 | --- | ---: |
-| Kötelező (MVP) | 23 |
-| Ajánlott | 12 |
+| Kötelező (MVP) | 24 |
+| Ajánlott | 11 |
 | Lehetséges | 4 |
 
 ---
@@ -243,7 +243,7 @@ Fejlesztési sorrend, minden lépésnek mérhető kimenete van:
 
 ### Ütemezés és tartalék
 
-- Az **MVP** a 23 Kötelező követelmény; ezek készülnek el először
+- Az **MVP** a 24 Kötelező követelmény; ezek készülnek el először
 - Az **Ajánlott** és **Lehetséges** elemek csak utána jönnek (pl. fixpontos mód, második szimuláció, automatikus CSV-összevetés)
 - Ha csúszás van, ezek maradnak el, a mérések és a determinizmus nem
 - A részletes ütemterv és a mérföldkövek a GitHub Project táblán követhetők
@@ -274,7 +274,7 @@ Fejlesztési sorrend, minden lépésnek mérhető kimenete van:
 ### Kérdések a témavezetőnek
 
 1. **.NET 10 (LTS)** használata, mert a .NET 8 támogatása 2026 novemberében lejárt
-2. Az **MVP szűkítése** megfelelő-e (két hibatípus, egy helyreállítási módszer, `double`)
+2. Az **MVP szűkítése** megfelelő-e (három hibatípus, egy helyreállítási módszer, `double`)
 3. A **kísérleti mátrix** mérete és a mérési célértékek
 4. **Külső, kész játék** adapterezése: hatókörön kívül hagyom
 

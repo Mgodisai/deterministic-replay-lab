@@ -106,9 +106,9 @@ Nincs bejelentkezés, nincs jogosultságkezelés.
 
 ### A 2. félévi első célkitűzés (MVP)
 
-- **Kötelező** követelmények: 23 db (az összesen 39-ből)
+- **Kötelező** követelmények: 24 db (az összesen 39-ből)
 - egy aréna, `double` számábrázolás, egy helyreállítási módszer
-- két hibatípus: állapotzaj és elcsúsztatott bemenet
+- három hibatípus: állapotzaj, elcsúsztatott bemenet és numerikus eltérés
 - kísérletek parancssorból, eredmény CSV-ben, egyszerű WPF felület
 - a többi (Ajánlott, Lehetséges) csak ezek után
 
@@ -168,5 +168,5 @@ Rögzítés → Visszajátszás → Ugrás → Hiba injektálása → Helyreáll
 ### Amit egyeztetni szeretnék
 
 - a .NET 10 (LTS) használata a korábban tervezett .NET 8/9 helyett
-- az MVP szűkítése (két hibatípus, egy helyreállítási módszer, `double`)
+- az MVP szűkítése (három hibatípus, egy helyreállítási módszer, `double`)
 - a mérési terv és a célértékek (ezek kiinduló hipotézisek)
